@@ -181,60 +181,39 @@ class BERT_BiLSTM_Attention_CRF(nn.Module):
         else:
             return self.crf.decode(emissions, mask=attention_mask.bool())
 
-
 # ==========================================
-# 3. Define Model File Paths (Streamlit Local Paths)
+# 3. Define Model File Paths & Auto-Search (Streamlit Local Paths)
 # ==========================================
-NER_MODEL_FOLDER = "ner_model"  # 改为本地下载后的文件夹名
+NER_MODEL_FOLDER = "ner_model"
+SBERT_MODEL_FOLDER = "matcher_model"
 
-# NER Model Paths
-MODEL_WEIGHTS_PATH = os.path.join(NER_MODEL_FOLDER, "best_model_run_2.pt")
-MODEL_CONFIG_PATH = os.path.join(NER_MODEL_FOLDER, "best_config_run_2.json")
-
-SBERT_MODEL_FOLDER = "matcher_model"  # 改为本地下载后的文件夹名
-# SBERT Matcher Path
-SBERT_PATH = SBERT_MODEL_FOLDER
-
-
-# ==========================================
-# 4. Load NER Model & Tokenizer
-# ==========================================
-# 1. Load JSON Config File
-# 自动寻找藏有 NER 模型文件的真实目录（解决嵌套问题）
-# ==========================================
-# 4. Load NER Model & Tokenizer
-# ==========================================
-
-# 强力自动寻址：不管是几层嵌套，只要能找到 config.json 或 .pt 就锁定该目录
+# 自动寻找 NER 真实目录的函数
 def find_ner_dir(base_dir):
-    # 1. 先检查 base_dir 自身
-    if os.path.exists(os.path.join(base_dir, "best_config_run_2.json")):
-        return base_dir
-    # 2. 遍历所有子目录寻找文件
+    print(f"正在扫描 {base_dir} 下的所有文件结构：")
     for root, dirs, files in os.walk(base_dir):
+        print(f"当前目录: {root}, 包含文件: {files}")
         if "best_config_run_2.json" in files or "best_model_run_2.pt" in files:
             return root
     return base_dir
 
-# 获取真正的 NER 路径
+# 锁定真正的 NER 和 SBERT 路径
 NER_PATH = find_ner_dir(NER_MODEL_FOLDER)
 print(f"最终锁定的 NER 路径: {NER_PATH}")
 
-# 1. Load JSON Config File
+# 统一在这里定义好正确的最终路径，供后面直接调用
 MODEL_CONFIG_PATH = os.path.join(NER_PATH, "best_config_run_2.json")
-
-with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
-    config_loaded = json.load(f)
-
-print("NER weights loaded successfully!")
-
-# 2. 加载权重文件也用正确的 NER_PATH
 MODEL_WEIGHTS_PATH = os.path.join(NER_PATH, "best_model_run_2.pt")
-ner_weights = torch.load(MODEL_WEIGHTS_PATH, map_location=device)
-print("NER weights loaded successfully!")
 
+
+# ==========================================
+# 4. Load NER Model & Tokenizer
+# ==========================================
+
+# 1. Load JSON Config File
 with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
     config_loaded = json.load(f)
+
+print("NER config loaded successfully!")
 
 # loaded_label2id_crf = config_loaded['label2id_crf']
 # loaded_id2label_crf = config_loaded['id2label_crf']
@@ -242,6 +221,10 @@ loaded_dropout_rate = config_loaded['dropout_rate']
 loaded_lstm_hidden_size = config_loaded['lstm_hidden_size']
 loaded_lstm_num_layers = config_loaded['lstm_num_layers']
 loaded_max_length = max_length
+
+# 2. Load NER Weights (强制使用 CPU 防止内存溢出)
+ner_weights = torch.load(MODEL_WEIGHTS_PATH, map_location=device)
+print("NER weights loaded successfully!")
 
 loaded_label2id_crf = {
     'B-CAU': 0,
