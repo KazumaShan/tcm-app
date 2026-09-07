@@ -89,7 +89,6 @@ print(f"自动修复后的 NER 权重路径: {NER_WEIGHTS_PATH}")
 ner_weights = torch.load(NER_WEIGHTS_PATH, map_location=device)
 print("NER weights loaded successfully!")
 
-from google.colab import drive
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -110,7 +109,6 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from google.colab import drive
 from transformers import BertTokenizer, BertModel
 from torchcrf import CRF
 from sentence_transformers import SentenceTransformer
