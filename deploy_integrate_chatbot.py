@@ -43,7 +43,8 @@ def download_models():
 
     return ner_dir, sbert_dir
 
-NER_MODEL_FOLDER, SBERT_MODEL_FOLDER = download_models()
+NER_PATH, SBERT_MODEL_FOLDER = download_models()
+
 
 # 自动寻找文件夹里面藏有 config.json 的真正目录
 def find_model_path(base_dir):
