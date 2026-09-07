@@ -13,54 +13,77 @@ import streamlit as st
 
 import os
 import zipfile
+import shutil
 import torch
 import gdown
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu')
 
 @st.cache_resource
 def download_models():
     ner_dir = "ner_model"
     sbert_dir = "matcher_model"
 
+    # 核心修复：如果目录存在，但关键文件缺失，说明上次解压残缺了，必须强制删掉重新下！
+    if os.path.exists(ner_dir):
+        if not any("best_config_run_2.json" in f for _, _, files in os.walk(ner_dir) for f in files):
+            print("检测到 NER 目录残缺，正在强制清理并重新下载...")
+            shutil.rmtree(ner_dir)
+
+    if os.path.exists(sbert_dir):
+        if not any("config.json" in f for _, _, files in os.walk(sbert_dir) for f in files):
+            print("检测到 SBERT 目录残缺，正在强制清理并重新下载...")
+            shutil.rmtree(sbert_dir)
+
     # 1. 下载并解压 NER 模型
-    zip_path_ner = "ner_model.zip"
-    ner_file_id = "1ftCQlp8dxP_-gNc89Sz-KvImUFjqkZpt"
-    gdown.download(f"https://drive.google.com/uc?id={ner_file_id}", zip_path_ner, quiet=False)
-    os.makedirs(ner_dir, exist_ok=True)
-    with zipfile.ZipFile(zip_path_ner, 'r') as zip_ref:
-        zip_ref.extractall(ner_dir)
+    if not os.path.exists(ner_dir) or not os.listdir(ner_dir):
+        os.makedirs(ner_dir, exist_ok=True)
+        zip_path_ner = "ner_model.zip"
+        ner_file_id = "1ftCQlp8dxP_-gNc89Sz-KvImUFjqkZpt"
+        gdown.download(f"https://drive.google.com/uc?id={ner_file_id}", zip_path_ner, quiet=False)
+        with zipfile.ZipFile(zip_path_ner, 'r') as zip_ref:
+            zip_ref.extractall(ner_dir)
+        if os.path.exists(zip_path_ner):
+            os.remove(zip_path_ner)
 
     # 2. 下载并解压 SBERT 模型
-    zip_path_sbert = "matcher_model.zip"
-    sbert_file_id = "1SWWlmouGNICG4fGCV7FjEcIESkKTCl6L"
-    gdown.download(f"https://drive.google.com/uc?id={sbert_file_id}", zip_path_sbert, quiet=False)
-    os.makedirs(sbert_dir, exist_ok=True)
-    with zipfile.ZipFile(zip_path_sbert, 'r') as zip_ref:
-        zip_ref.extractall(sbert_dir)
+    if not os.path.exists(sbert_dir) or not os.listdir(sbert_dir):
+        os.makedirs(sbert_dir, exist_ok=True)
+        zip_path_sbert = "matcher_model.zip"
+        sbert_file_id = "1SWWlmouGNICG4fGCV7FjEcIESkKTCl6L"
+        gdown.download(f"https://drive.google.com/uc?id={sbert_file_id}", zip_path_sbert, quiet=False)
+        with zipfile.ZipFile(zip_path_sbert, 'r') as zip_ref:
+            zip_ref.extractall(sbert_dir)
+        if os.path.exists(zip_path_sbert):
+            os.remove(zip_path_sbert)
 
     return ner_dir, sbert_dir
 
-NER_PATH, SBERT_MODEL_FOLDER = download_models()
+NER_MODEL_FOLDER, SBERT_MODEL_FOLDER = download_models()
 
-
-# 自动寻找文件夹里面藏有 config.json 的真正目录
-def find_model_path(base_dir):
-    if os.path.exists(os.path.join(base_dir, "config.json")):
-        return base_dir
+# 自动寻找 NER 真实目录
+def find_ner_dir(base_dir):
     for root, dirs, files in os.walk(base_dir):
-        if "config.json" in files:
+        if "best_config_run_2.json" in files or "best_model_run_2.pt" in files:
             return root
     return base_dir
 
-SBERT_PATH = find_model_path(SBERT_MODEL_FOLDER)
-print(f"最终使用的 SBERT 路径: {SBERT_PATH}")
+NER_PATH = find_ner_dir(NER_MODEL_FOLDER)
+print(f"最终锁定的 NER 路径: {NER_PATH}")
 
-# 加载 SBERT 模型
-sbert_model = SentenceTransformer(SBERT_PATH, device=device)
-print("SBERT Matcher loaded successfully!")
+MODEL_CONFIG_PATH = os.path.join(NER_PATH, "best_config_run_2.json")
+MODEL_WEIGHTS_PATH = os.path.join(NER_PATH, "best_model_run_2.pt")
+
+# 安全检查：打印绝对路径并确认它真实存在
+print(f"尝试打开配置文件: {os.path.abspath(MODEL_CONFIG_PATH)}")
+assert os.path.exists(MODEL_CONFIG_PATH), f"致命错误：文件在物理磁盘上找不到 -> {MODEL_CONFIG_PATH}"
+
+with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
+    config_loaded = json.load(f)
+
+print("NER config loaded successfully!")
 
 """Load SBERT Matcher"""
 
