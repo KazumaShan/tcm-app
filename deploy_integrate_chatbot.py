@@ -71,18 +71,23 @@ print("SBERT Matcher loaded successfully!")
 
 """Load NER Model (BERT-BiLSTM-CRF)"""
 
-# Load NER Weights & Config
-ner_weights = torch.load(f"{NER_PATH}/best_model_run_2.pt", map_location=device)
+# 自动寻找 ner_model 文件夹里面藏有 best_model_run_2.pt 的真正目录（解决 NER 路径嵌套问题）
+def find_ner_weight_path(base_dir, weight_filename="best_model_run_2.pt"):
+    target_path = os.path.join(base_dir, weight_filename)
+    if os.path.exists(target_path):
+        return target_path
+    for root, dirs, files in os.walk(base_dir):
+        if weight_filename in files:
+            return os.path.join(root, weight_filename)
+    return target_path  # 找不到就返回默认路径抛出异常
 
-# Instantiate your custom BERT-BiLSTM-CRF class and load state_dict
-# ner_model = CustomNERModel(...)  # Your class instantiation
-# ner_model.load_state_dict(ner_weights)
-# ner_model.to(device)
-# ner_model.eval()
+# 动态获取正确的权重文件路径
+NER_WEIGHTS_PATH = find_ner_weight_path(NER_PATH)
+print(f"自动修复后的 NER 权重路径: {NER_WEIGHTS_PATH}")
 
-print("NER Model loaded successfully!")
-
-
+# 加载 NER 权重
+ner_weights = torch.load(NER_WEIGHTS_PATH, map_location=device)
+print("NER weights loaded successfully!")
 
 from google.colab import drive
 import torch
