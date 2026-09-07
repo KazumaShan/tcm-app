@@ -200,7 +200,31 @@ SBERT_PATH = SBERT_MODEL_FOLDER
 # 4. Load NER Model & Tokenizer
 # ==========================================
 # 1. Load JSON Config File
-MODEL_CONFIG_PATH = os.path.join(NER_MODEL_FOLDER, "best_config_run_2.json")
+# 自动寻找藏有 NER 模型文件的真实目录（解决嵌套问题）
+def find_ner_dir(base_dir, target_file="best_model_run_2.pt"):
+    if os.path.exists(os.path.join(base_dir, target_file)):
+        return base_dir
+    for root, dirs, files in os.walk(base_dir):
+        if target_file in files:
+            return root
+    return base_dir
+
+# 纠正 NER 路径（确保 NER_PATH 指向真正包含 .pt 和 .json 的目录）
+NER_PATH = find_ner_dir(NER_MODEL_FOLDER)
+print(f"自动修复后的 NER 路径: {NER_PATH}")
+
+# 1. 之后加载 JSON 配置文件就可以直接用正确的 NER_PATH 了
+MODEL_CONFIG_PATH = os.path.join(NER_PATH, "best_config_run_2.json")
+
+with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
+    config_loaded = json.load(f)
+
+print("NER config loaded successfully!")
+
+# 2. 加载权重文件也用正确的 NER_PATH
+MODEL_WEIGHTS_PATH = os.path.join(NER_PATH, "best_model_run_2.pt")
+ner_weights = torch.load(MODEL_WEIGHTS_PATH, map_location=device)
+print("NER weights loaded successfully!")
 
 with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
     config_loaded = json.load(f)
