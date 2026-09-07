@@ -1,0 +1,6 @@
+streamlit
+torch
+gdown
+transformers
+pytorch-crf
+sentence-transformers
