@@ -25,11 +25,10 @@ def download_models():
     ner_dir = "ner_model"
     sbert_dir = "matcher_model"
 
-    # 强制重新下载并覆盖，避免缓存旧的损坏文件
     # 1. 下载并解压 NER 模型
     zip_path_ner = "ner_model.zip"
     ner_file_id = "1ftCQlp8dxP_-gNc89Sz-KvImUFjqkZpt"
-    gdown.download(f"https://drive.google.com/uc?id={ner_file_id}", zip_path_ner, fuzzy=True, quiet=False)
+    gdown.download(f"https://drive.google.com/uc?id={ner_file_id}", zip_path_ner, quiet=False)
     os.makedirs(ner_dir, exist_ok=True)
     with zipfile.ZipFile(zip_path_ner, 'r') as zip_ref:
         zip_ref.extractall(ner_dir)
@@ -37,7 +36,7 @@ def download_models():
     # 2. 下载并解压 SBERT 模型
     zip_path_sbert = "matcher_model.zip"
     sbert_file_id = "1SWWlmouGNICG4fGCV7FjEcIESkKTCl6L"
-    gdown.download(f"https://drive.google.com/uc?id={sbert_file_id}", zip_path_sbert, fuzzy=True, quiet=False)
+    gdown.download(f"https://drive.google.com/uc?id={sbert_file_id}", zip_path_sbert, quiet=False)
     os.makedirs(sbert_dir, exist_ok=True)
     with zipfile.ZipFile(zip_path_sbert, 'r') as zip_ref:
         zip_ref.extractall(sbert_dir)
@@ -46,19 +45,7 @@ def download_models():
 
 NER_MODEL_FOLDER, SBERT_MODEL_FOLDER = download_models()
 
-# 检查解压出来的所有文件，排查有没有 config.json
-print("=== 正在检查 matcher_model 解压后的文件结构 ===")
-all_files = []
-for root, dirs, files in os.walk(SBERT_MODEL_FOLDER):
-    for file in files:
-        full_path = os.path.join(root, file)
-        all_files.append(full_path)
-        print(f"发现文件: {full_path}")
-
-if not any("config.json" in f for f in all_files):
-    st.error("错误：你的 SBERT 压缩包解压后，所有目录中都找不到 config.json！请检查网盘里的压缩包内容。")
-
-# 寻找正确的路径
+# 自动寻找文件夹里面藏有 config.json 的真正目录
 def find_model_path(base_dir):
     if os.path.exists(os.path.join(base_dir, "config.json")):
         return base_dir
