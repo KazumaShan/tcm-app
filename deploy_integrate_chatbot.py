@@ -201,25 +201,32 @@ SBERT_PATH = SBERT_MODEL_FOLDER
 # ==========================================
 # 1. Load JSON Config File
 # 自动寻找藏有 NER 模型文件的真实目录（解决嵌套问题）
-def find_ner_dir(base_dir, target_file="best_model_run_2.pt"):
-    if os.path.exists(os.path.join(base_dir, target_file)):
+# ==========================================
+# 4. Load NER Model & Tokenizer
+# ==========================================
+
+# 强力自动寻址：不管是几层嵌套，只要能找到 config.json 或 .pt 就锁定该目录
+def find_ner_dir(base_dir):
+    # 1. 先检查 base_dir 自身
+    if os.path.exists(os.path.join(base_dir, "best_config_run_2.json")):
         return base_dir
+    # 2. 遍历所有子目录寻找文件
     for root, dirs, files in os.walk(base_dir):
-        if target_file in files:
+        if "best_config_run_2.json" in files or "best_model_run_2.pt" in files:
             return root
     return base_dir
 
-# 纠正 NER 路径（确保 NER_PATH 指向真正包含 .pt 和 .json 的目录）
+# 获取真正的 NER 路径
 NER_PATH = find_ner_dir(NER_MODEL_FOLDER)
-print(f"自动修复后的 NER 路径: {NER_PATH}")
+print(f"最终锁定的 NER 路径: {NER_PATH}")
 
-# 1. 之后加载 JSON 配置文件就可以直接用正确的 NER_PATH 了
+# 1. Load JSON Config File
 MODEL_CONFIG_PATH = os.path.join(NER_PATH, "best_config_run_2.json")
 
 with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
     config_loaded = json.load(f)
 
-print("NER config loaded successfully!")
+print("NER weights loaded successfully!")
 
 # 2. 加载权重文件也用正确的 NER_PATH
 MODEL_WEIGHTS_PATH = os.path.join(NER_PATH, "best_model_run_2.pt")
