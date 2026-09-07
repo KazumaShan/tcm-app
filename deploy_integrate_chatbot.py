@@ -11,24 +11,36 @@ Original file is located at
 
 """Loading Both Models in Google Colab"""
 
-from google.colab import drive
+import os
 import torch
+import gdown
 from sentence_transformers import SentenceTransformer
 
-# Mount Google Drive
-drive.mount('/content/drive', force_remount=True)
-# Paths to models
-NER_PATH = '/content/drive/MyDrive/FYPBestModels/ner_model'
-SBERT_PATH = '/content/drive/MyDrive/FYPBestModels/matcher_model'
+# 自动从 Google Drive 下载整个模型文件夹到 Streamlit 本地
+@st.cache_resource
+def download_models():
+    ner_dir = "ner_model"
+    sbert_dir = "matcher_model"
+
+    # 如果本地没有 ner_model 文件夹，就通过 Google Drive 文件夹链接下载
+    if not os.path.exists(ner_dir):
+        # TODO: 换成你 Google Drive 中 ner_model 文件夹的分享链接
+        ner_folder_url = "https://drive.google.com/drive/folders/1gKiH5848QnFzCv7xIGfVjdwCslN_dmm0"
+        gdown.download_folder(ner_folder_url, output=ner_dir, quiet=False, use_cookies=False)
+
+    if not os.path.exists(sbert_dir):
+        # TODO: 换成你 Google Drive 中 matcher_model 文件夹的分享链接
+        sbert_folder_url = "https://drive.google.com/drive/folders/1_R4GKXEViphHyPBLI_Jw32SOuqvRYUoF"
+        gdown.download_folder(sbert_folder_url, output=sbert_dir, quiet=False, use_cookies=False)
+
+    return ner_dir, sbert_dir
+
+# 获取本地模型路径
+NER_PATH, SBERT_PATH = download_models()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 """Load SBERT Matcher"""
-
-from google.colab import drive
-import os
-
-drive.mount('/content/drive')
 
 # Pass the directory path directly
 sbert_model = SentenceTransformer(SBERT_PATH, device=device)
@@ -58,7 +70,6 @@ from torchcrf import CRF
 from sentence_transformers import SentenceTransformer
 import json
 
-drive.mount('/content/drive')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 max_length = 128
@@ -76,8 +87,6 @@ from transformers import BertTokenizer, BertModel
 from torchcrf import CRF
 from sentence_transformers import SentenceTransformer
 
-# Mount Google Drive
-drive.mount('/content/drive')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -148,15 +157,15 @@ class BERT_BiLSTM_Attention_CRF(nn.Module):
 
 
 # ==========================================
-# 3. Define Model File Paths (Adjust if needed)
+# 3. Define Model File Paths (Streamlit Local Paths)
 # ==========================================
-NER_MODEL_FOLDER = "/content/drive/MyDrive/FYPBestModels/ner_model"
+NER_MODEL_FOLDER = "ner_model"  # 改为本地下载后的文件夹名
 
 # NER Model Paths
 MODEL_WEIGHTS_PATH = os.path.join(NER_MODEL_FOLDER, "best_model_run_2.pt")
-MODEL_CONFIG_PATH = os.path.join(NER_MODEL_FOLDER, "best_config_run_2.json")  # Change to .pt if saved as .pt
+MODEL_CONFIG_PATH = os.path.join(NER_MODEL_FOLDER, "best_config_run_2.json")
 
-SBERT_MODEL_FOLDER = "/content/drive/MyDrive/FYPBestModels/matcher_model"
+SBERT_MODEL_FOLDER = "matcher_model"  # 改为本地下载后的文件夹名
 # SBERT Matcher Path
 SBERT_PATH = SBERT_MODEL_FOLDER
 
