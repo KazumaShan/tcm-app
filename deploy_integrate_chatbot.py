@@ -65,6 +65,7 @@ def find_ner_dir(base_dir):
             return root
     return base_dir
 
+
 NER_PATH = find_ner_dir(NER_MODEL_FOLDER)
 print(f"最终锁定的 NER 路径: {NER_PATH}")
 
@@ -79,6 +80,21 @@ with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
     config_loaded = json.load(f)
 
 print("NER config loaded successfully!")
+
+# 自动寻找 SBERT 真实目录
+def find_sbert_dir(base_dir):
+    for root, dirs, files in os.walk(base_dir):
+        if "config.json" in files:
+            return root
+    return base_dir
+
+SBERT_PATH = find_sbert_dir(SBERT_MODEL_FOLDER)
+print(f"最终锁定的 SBERT 路径: {SBERT_PATH}")
+
+# Pass the directory path directly
+print(os.listdir(SBERT_PATH))
+sbert_model = SentenceTransformer(SBERT_PATH, device=device)
+print("SBERT Matcher loaded successfully!")
 
 """Load SBERT Matcher"""
 
