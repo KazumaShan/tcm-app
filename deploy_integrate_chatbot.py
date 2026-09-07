@@ -52,11 +52,14 @@ def download_models():
 # 获取本地模型路径
 NER_PATH, SBERT_PATH = download_models()
 
+
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 """Load SBERT Matcher"""
 
 # Pass the directory path directly
+print(os.listdir("matcher_model"))
 sbert_model = SentenceTransformer(SBERT_PATH, device=device)
 print("SBERT Matcher loaded successfully!")
 
