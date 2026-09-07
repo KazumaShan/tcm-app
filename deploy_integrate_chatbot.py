@@ -12,26 +12,40 @@ import streamlit as st
 """Loading Both Models in Google Colab"""
 
 import os
+import zipfile
 import torch
 import gdown
 from sentence_transformers import SentenceTransformer
 
-# 自动从 Google Drive 下载整个模型文件夹到 Streamlit 本地
+# 自动从 Google Drive 下载 zip 压缩包并解压到 Streamlit 本地
 @st.cache_resource
 def download_models():
     ner_dir = "ner_model"
     sbert_dir = "matcher_model"
 
-    # 如果本地没有 ner_model 文件夹，就通过 Google Drive 文件夹链接下载
+    # 1. 下载并解压 NER 模型
     if not os.path.exists(ner_dir):
-        # TODO: 换成你 Google Drive 中 ner_model 文件夹的分享链接
-        ner_folder_url = "https://drive.google.com/drive/folders/1gKiH5848QnFzCv7xIGfVjdwCslN_dmm0"
-        gdown.download_folder(ner_folder_url, output=ner_dir, quiet=False, use_cookies=False)
+        os.makedirs(ner_dir, exist_ok=True)
+        zip_path = "ner_model.zip"
+        # 使用你原本的文件 ID
+        ner_file_id = "1ftCQlp8dxP_-gNc89Sz-KvImUFjqkZpt"
+        url = f"https://drive.google.com/uc?id={ner_file_id}"
+        gdown.download(url, zip_path, fuzzy=True)
 
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(ner_dir)
+
+    # 2. 下载并解压 SBERT 模型
     if not os.path.exists(sbert_dir):
-        # TODO: 换成你 Google Drive 中 matcher_model 文件夹的分享链接
-        sbert_folder_url = "https://drive.google.com/drive/folders/1_R4GKXEViphHyPBLI_Jw32SOuqvRYUoF"
-        gdown.download_folder(sbert_folder_url, output=sbert_dir, quiet=False, use_cookies=False)
+        os.makedirs(sbert_dir, exist_ok=True)
+        zip_path = "matcher_model.zip"
+        # 使用你原本的文件 ID
+        sbert_file_id = "1SWWlmouGNICG4fGCV7FjEcIESkKTCl6L"
+        url = f"https://drive.google.com/uc?id={sbert_file_id}"
+        gdown.download(url, zip_path, fuzzy=True)
+
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(sbert_dir)
 
     return ner_dir, sbert_dir
 
