@@ -15,7 +15,11 @@ import os
 import zipfile
 import torch
 import gdown
+import streamlit as st
 from sentence_transformers import SentenceTransformer
+
+# 1. 先定义 device，确保后面加载模型时能用到
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # 自动从 Google Drive 下载 zip 压缩包并解压到 Streamlit 本地
 @st.cache_resource
@@ -27,7 +31,6 @@ def download_models():
     if not os.path.exists(ner_dir):
         os.makedirs(ner_dir, exist_ok=True)
         zip_path = "ner_model.zip"
-        # 使用你原本的文件 ID
         ner_file_id = "1ftCQlp8dxP_-gNc89Sz-KvImUFjqkZpt"
         url = f"https://drive.google.com/uc?id={ner_file_id}"
         gdown.download(url, zip_path, fuzzy=True)
@@ -39,7 +42,6 @@ def download_models():
     if not os.path.exists(sbert_dir):
         os.makedirs(sbert_dir, exist_ok=True)
         zip_path = "matcher_model.zip"
-        # 使用你原本的文件 ID
         sbert_file_id = "1SWWlmouGNICG4fGCV7FjEcIESkKTCl6L"
         url = f"https://drive.google.com/uc?id={sbert_file_id}"
         gdown.download(url, zip_path, fuzzy=True)
@@ -49,12 +51,31 @@ def download_models():
 
     return ner_dir, sbert_dir
 
-# 获取本地模型路径
-NER_PATH, SBERT_PATH = download_models()
+# 2. 调用函数获取基础路径
+NER_MODEL_FOLDER, SBERT_MODEL_FOLDER = download_models()
 
+# 3. 自动寻找文件夹里面藏有 config.json 的真正目录（解决嵌套问题）
+def find_model_path(base_dir):
+    if os.path.exists(os.path.join(base_dir, "config.json")):
+        return base_dir
+    for root, dirs, files in os.walk(base_dir):
+        if "config.json" in files:
+            return root
+    return base_dir
 
+# 纠正 SBERT 路径
+SBERT_PATH = find_model_path(SBERT_MODEL_FOLDER)
+print(f"自动修复后的 SBERT 路径: {SBERT_PATH}")
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# 4. 加载 SBERT 模型
+sbert_model = SentenceTransformer(SBERT_PATH, device=device)
+print("SBERT Matcher loaded successfully!")
+
+# 5. 定义 NER 模型的具体文件路径（配合你之前的逻辑）
+MODEL_WEIGHTS_PATH = os.path.join(NER_MODEL_FOLDER, "best_model_run_2.pt")
+MODEL_CONFIG_PATH = os.path.join(NER_MODEL_FOLDER, "best_config_run_2.json")
+
+print("所有模型路径初始化完成！")
 
 """Load SBERT Matcher"""
 
