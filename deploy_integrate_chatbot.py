@@ -22,12 +22,37 @@ from sentence_transformers import SentenceTransformer
 
 device = torch.device('cpu')
 
+def find_dir_with_files(base_dir, required_files):
+    """要求所有 required_files 都在同一个文件夹里才算找到，找不到返回 None"""
+    for root, dirs, files in os.walk(base_dir):
+        if all(f in files for f in required_files):
+            return root
+    return None
+
+def safe_download_and_extract(file_id, zip_path, extract_dir):
+    """下载并校验是不是真的 zip 文件，不是就直接报错"""
+    gdown.download(f"https://drive.google.com/uc?id={file_id}", zip_path, quiet=False, fuzzy=True)
+
+    if not os.path.exists(zip_path):
+        raise RuntimeError(f"下载失败，文件不存在: {zip_path}")
+
+    if not zipfile.is_zipfile(zip_path):
+        raise RuntimeError(
+            f"下载下来的文件不是合法的 zip（很可能是 Google Drive 的病毒扫描警告页面 / 权限问题）。"
+            f"请检查文件 id={file_id} 的共享设置是否为 '任何人（知道链接）可查看'。"
+        )
+
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        print(f"[{zip_path}] 压缩包内容: {zip_ref.namelist()}")
+        zip_ref.extractall(extract_dir)
+
+    os.remove(zip_path)
+
 @st.cache_resource
 def download_models():
     ner_dir = "ner_model"
     sbert_dir = "matcher_model"
 
-    # 强制清理旧目录，确保每次重启都会重新下载解压最新的压缩包
     if os.path.exists(ner_dir):
         shutil.rmtree(ner_dir)
     if os.path.exists(sbert_dir):
@@ -36,92 +61,98 @@ def download_models():
     os.makedirs(ner_dir, exist_ok=True)
     os.makedirs(sbert_dir, exist_ok=True)
 
-    # 1. 下载并解压 NER 模型
-    zip_path_ner = "ner_model.zip"
-    ner_file_id = "1fuMVt8SMMyUij242uOHXbhRAItxft9Gi"
-    gdown.download(f"https://drive.google.com/uc?id={ner_file_id}", zip_path_ner, quiet=False)
-    with zipfile.ZipFile(zip_path_ner, 'r') as zip_ref:
-        zip_ref.extractall(ner_dir)
-    if os.path.exists(zip_path_ner):
-        os.remove(zip_path_ner)
+    # 1. NER 模型
+    safe_download_and_extract(
+        file_id="1fuMVt8SMMyUij242uOHXbhRAItxft9Gi",
+        zip_path="ner_model.zip",
+        extract_dir=ner_dir
+    )
 
-    # 2. 下载并解压 SBERT 模型
-    zip_path_sbert = "matcher_model.zip"
-    sbert_file_id = "1SWWlmouGNICG4fGCV7FjEcIESkKTCl6L"
-    gdown.download(f"https://drive.google.com/uc?id={sbert_file_id}", zip_path_sbert, quiet=False)
-    with zipfile.ZipFile(zip_path_sbert, 'r') as zip_ref:
-        zip_ref.extractall(sbert_dir)
-    if os.path.exists(zip_path_sbert):
-        os.remove(zip_path_sbert)
+    # 2. SBERT 模型
+    safe_download_and_extract(
+        file_id="1SWWlmouGNICG4fGCV7FjEcIESkKTCl6L",
+        zip_path="matcher_model.zip",
+        extract_dir=sbert_dir
+    )
 
     return ner_dir, sbert_dir
 
 NER_MODEL_FOLDER, SBERT_MODEL_FOLDER = download_models()
 
-# 自动寻找 NER 真实目录（无论有没有嵌套都能找出来）
-def find_ner_dir(base_dir):
-    for root, dirs, files in os.walk(base_dir):
-        if "best_config_run_2.json" in files or "best_model_run_2.pt" in files:
-            return root
-    return base_dir
+# ---- 定位 NER 真实目录：要求 config 和 pt 权重同时存在 ----
+NER_PATH = find_dir_with_files(
+    NER_MODEL_FOLDER,
+    ["best_config_run_2.json", "best_model_run_2.pt"]
+)
+if NER_PATH is None:
+    print("在 NER 解压目录里没找到同时包含两个文件的文件夹，完整目录结构如下：")
+    for root, dirs, files in os.walk(NER_MODEL_FOLDER):
+        print(root, files)
+    raise RuntimeError("找不到有效的 NER 模型目录，请检查上面打印的目录结构")
 
-
-NER_PATH = find_ner_dir(NER_MODEL_FOLDER)
 print(f"最终锁定的 NER 路径: {NER_PATH}")
-
 MODEL_CONFIG_PATH = os.path.join(NER_PATH, "best_config_run_2.json")
 MODEL_WEIGHTS_PATH = os.path.join(NER_PATH, "best_model_run_2.pt")
 
-# 安全检查：打印绝对路径并确认它真实存在
-print(f"尝试打开配置文件: {os.path.abspath(MODEL_CONFIG_PATH)}")
-assert os.path.exists(MODEL_CONFIG_PATH), f"致命错误：文件在物理磁盘上找不到 -> {MODEL_CONFIG_PATH}"
+assert os.path.exists(MODEL_CONFIG_PATH), f"配置文件找不到 -> {MODEL_CONFIG_PATH}"
+assert os.path.exists(MODEL_WEIGHTS_PATH), f"权重文件找不到 -> {MODEL_WEIGHTS_PATH}"
 
 with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
     config_loaded = json.load(f)
-
 print("NER config loaded successfully!")
 
-# 自动寻找 SBERT 真实目录
-def find_sbert_dir(base_dir):
-    for root, dirs, files in os.walk(base_dir):
-        if "config.json" in files:
-            return root
-    return base_dir
+loaded_dropout_rate = config_loaded['dropout_rate']
+loaded_lstm_hidden_size = config_loaded['lstm_hidden_size']
+loaded_lstm_num_layers = config_loaded['lstm_num_layers']
+loaded_max_length = config_loaded.get('max_length', 128)  # 如果 config 里有就用这个，没有就给默认值，别依赖外部未定义变量
 
-SBERT_PATH = find_sbert_dir(SBERT_MODEL_FOLDER)
+ner_weights = torch.load(MODEL_WEIGHTS_PATH, map_location=device)
+print("NER weights loaded successfully!")
+
+
+# ---- 定位 SBERT 真实目录：要求 config.json 和权重文件同时存在 ----
+SBERT_PATH = find_dir_with_files(
+    SBERT_MODEL_FOLDER,
+    ["config.json"]  # 如果你知道具体权重文件名（如 pytorch_model.bin / model.safetensors），建议加进列表一起校验
+)
+if SBERT_PATH is None:
+    print("在 SBERT 解压目录里没找到 config.json，完整目录结构如下：")
+    for root, dirs, files in os.walk(SBERT_MODEL_FOLDER):
+        print(root, files)
+    raise RuntimeError("找不到有效的 SBERT 模型目录，请检查上面打印的目录结构")
+
 print(f"最终锁定的 SBERT 路径: {SBERT_PATH}")
-
-# Pass the directory path directly
 print(os.listdir(SBERT_PATH))
+
 sbert_model = SentenceTransformer(SBERT_PATH, device=device)
 print("SBERT Matcher loaded successfully!")
 
 """Load SBERT Matcher"""
 
-# Pass the directory path directly
-print(os.listdir("matcher_model"))
-sbert_model = SentenceTransformer(SBERT_PATH, device=device)
-print("SBERT Matcher loaded successfully!")
+# # Pass the directory path directly
+# print(os.listdir("matcher_model"))
+# sbert_model = SentenceTransformer(SBERT_PATH, device=device)
+# print("SBERT Matcher loaded successfully!")
 
 """Load NER Model (BERT-BiLSTM-CRF)"""
 
-# 自动寻找 ner_model 文件夹里面藏有 best_model_run_2.pt 的真正目录（解决 NER 路径嵌套问题）
-def find_ner_weight_path(base_dir, weight_filename="best_model_run_2.pt"):
-    target_path = os.path.join(base_dir, weight_filename)
-    if os.path.exists(target_path):
-        return target_path
-    for root, dirs, files in os.walk(base_dir):
-        if weight_filename in files:
-            return os.path.join(root, weight_filename)
-    return target_path  # 找不到就返回默认路径抛出异常
+# # 自动寻找 ner_model 文件夹里面藏有 best_model_run_2.pt 的真正目录（解决 NER 路径嵌套问题）
+# def find_ner_weight_path(base_dir, weight_filename="best_model_run_2.pt"):
+#     target_path = os.path.join(base_dir, weight_filename)
+#     if os.path.exists(target_path):
+#         return target_path
+#     for root, dirs, files in os.walk(base_dir):
+#         if weight_filename in files:
+#             return os.path.join(root, weight_filename)
+#     return target_path  # 找不到就返回默认路径抛出异常
 
-# 动态获取正确的权重文件路径
-NER_WEIGHTS_PATH = find_ner_weight_path(NER_PATH)
-print(f"自动修复后的 NER 权重路径: {NER_WEIGHTS_PATH}")
+# # 动态获取正确的权重文件路径
+# NER_WEIGHTS_PATH = find_ner_weight_path(NER_PATH)
+# print(f"自动修复后的 NER 权重路径: {NER_WEIGHTS_PATH}")
 
-# 加载 NER 权重
-ner_weights = torch.load(NER_WEIGHTS_PATH, map_location=device)
-print("NER weights loaded successfully!")
+# # 加载 NER 权重
+# ner_weights = torch.load(NER_WEIGHTS_PATH, map_location=device)
+# print("NER weights loaded successfully!")
 
 import torch
 import torch.nn as nn
@@ -146,8 +177,6 @@ import torch.nn.functional as F
 from transformers import BertTokenizer, BertModel
 from torchcrf import CRF
 from sentence_transformers import SentenceTransformer
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # ==========================================
@@ -215,33 +244,35 @@ class BERT_BiLSTM_Attention_CRF(nn.Module):
         else:
             return self.crf.decode(emissions, mask=attention_mask.bool())
 
-# ==========================================
-# 3. Define Model File Paths & Auto-Search (Streamlit Local Paths)
-# ==========================================
-NER_MODEL_FOLDER = "ner_model"
-SBERT_MODEL_FOLDER = "matcher_model"
+# # ==========================================
+# # 3. Define Model File Paths & Auto-Search (Streamlit Local Paths)
+# # ==========================================
+# NER_MODEL_FOLDER = "ner_model"
+# SBERT_MODEL_FOLDER = "matcher_model"
 
-# 自动寻找 NER 真实目录的函数
-def find_ner_dir(base_dir):
-    print(f"正在扫描 {base_dir} 下的所有文件结构：")
-    for root, dirs, files in os.walk(base_dir):
-        print(f"当前目录: {root}, 包含文件: {files}")
-        if "best_config_run_2.json" in files or "best_model_run_2.pt" in files:
-            return root
-    return base_dir
+# def find_dir_with_files(base_dir, required_files):
+#     for root, dirs, files in os.walk(base_dir):
+#         if all(f in files for f in required_files):
+#             return root
+#     return None
 
-# 锁定真正的 NER 和 SBERT 路径
-NER_PATH = find_ner_dir(NER_MODEL_FOLDER)
-print(f"最终锁定的 NER 路径: {NER_PATH}")
+# # 一次性找到正确目录
+# NER_PATH = find_dir_with_files(NER_MODEL_FOLDER, ["best_config_run_2.json", "best_model_run_2.pt"])
+# if NER_PATH is None:
+#     for root, dirs, files in os.walk(NER_MODEL_FOLDER):
+#         print(root, files)
+#     raise RuntimeError("找不到包含 NER 权重和配置的目录")
 
-# 统一在这里定义好正确的最终路径，供后面直接调用
-MODEL_CONFIG_PATH = os.path.join(NER_PATH, "best_config_run_2.json")
-MODEL_WEIGHTS_PATH = os.path.join(NER_PATH, "best_model_run_2.pt")
+# print(f"最终锁定的 NER 路径: {NER_PATH}")
+
+# # 统一在这里定义好正确的最终路径，供后面直接调用
+# MODEL_CONFIG_PATH = os.path.join(NER_PATH, "best_config_run_2.json")
+# MODEL_WEIGHTS_PATH = os.path.join(NER_PATH, "best_model_run_2.pt")
 
 
-# ==========================================
-# 4. Load NER Model & Tokenizer
-# ==========================================
+# # ==========================================
+# # 4. Load NER Model & Tokenizer
+# # ==========================================
 
 # 1. Load JSON Config File
 with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -257,7 +288,7 @@ loaded_lstm_num_layers = config_loaded['lstm_num_layers']
 loaded_max_length = max_length
 
 # 2. Load NER Weights (强制使用 CPU 防止内存溢出)
-ner_weights = torch.load(MODEL_WEIGHTS_PATH, map_location=device)
+# ner_weights = torch.load(MODEL_WEIGHTS_PATH, map_location=device)
 print("NER weights loaded successfully!")
 
 loaded_label2id_crf = {
@@ -303,9 +334,7 @@ loaded_model = BERT_BiLSTM_Attention_CRF(
 )
 
 # 3. Load Model Weights (.pt file)
-MODEL_WEIGHTS_PATH = os.path.join(NER_MODEL_FOLDER, "best_model_run_2.pt")
-model_weights = torch.load(MODEL_WEIGHTS_PATH, map_location=device, weights_only=False)
-loaded_model.load_state_dict(model_weights)
+loaded_model.load_state_dict(ner_weights)
 
 loaded_model.to(device)
 loaded_model.eval()
@@ -313,12 +342,6 @@ loaded_model.eval()
 # Load Bert Tokenizer
 loaded_tokenizer = BertTokenizer.from_pretrained("bert-base-chinese")
 print("✅ NER Model, Tokenizer, and Configurations loaded successfully!")
-
-# ==========================================
-# 5. Load SBERT Matcher Model
-# ==========================================
-sbert_model = SentenceTransformer(SBERT_PATH, device=device)
-print("✅ SBERT Matcher loaded successfully!")
 
 """3. Test the Complete End-to-End Pipeline
 
