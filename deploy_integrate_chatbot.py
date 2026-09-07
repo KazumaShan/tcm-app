@@ -18,43 +18,47 @@ import gdown
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 
-# 1. 先定义 device，确保后面加载模型时能用到
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# 自动从 Google Drive 下载 zip 压缩包并解压到 Streamlit 本地
 @st.cache_resource
 def download_models():
     ner_dir = "ner_model"
     sbert_dir = "matcher_model"
 
+    # 强制重新下载并覆盖，避免缓存旧的损坏文件
     # 1. 下载并解压 NER 模型
-    if not os.path.exists(ner_dir):
-        os.makedirs(ner_dir, exist_ok=True)
-        zip_path = "ner_model.zip"
-        ner_file_id = "1ftCQlp8dxP_-gNc89Sz-KvImUFjqkZpt"
-        url = f"https://drive.google.com/uc?id={ner_file_id}"
-        gdown.download(url, zip_path, fuzzy=True)
-
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(ner_dir)
+    zip_path_ner = "ner_model.zip"
+    ner_file_id = "1ftCQlp8dxP_-gNc89Sz-KvImUFjqkZpt"
+    gdown.download(f"https://drive.google.com/uc?id={ner_file_id}", zip_path_ner, fuzzy=True, quiet=False)
+    os.makedirs(ner_dir, exist_ok=True)
+    with zipfile.ZipFile(zip_path_ner, 'r') as zip_ref:
+        zip_ref.extractall(ner_dir)
 
     # 2. 下载并解压 SBERT 模型
-    if not os.path.exists(sbert_dir):
-        os.makedirs(sbert_dir, exist_ok=True)
-        zip_path = "matcher_model.zip"
-        sbert_file_id = "1SWWlmouGNICG4fGCV7FjEcIESkKTCl6L"
-        url = f"https://drive.google.com/uc?id={sbert_file_id}"
-        gdown.download(url, zip_path, fuzzy=True)
-
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(sbert_dir)
+    zip_path_sbert = "matcher_model.zip"
+    sbert_file_id = "1SWWlmouGNICG4fGCV7FjEcIESkKTCl6L"
+    gdown.download(f"https://drive.google.com/uc?id={sbert_file_id}", zip_path_sbert, fuzzy=True, quiet=False)
+    os.makedirs(sbert_dir, exist_ok=True)
+    with zipfile.ZipFile(zip_path_sbert, 'r') as zip_ref:
+        zip_ref.extractall(sbert_dir)
 
     return ner_dir, sbert_dir
 
-# 2. 调用函数获取基础路径
 NER_MODEL_FOLDER, SBERT_MODEL_FOLDER = download_models()
 
-# 3. 自动寻找文件夹里面藏有 config.json 的真正目录（解决嵌套问题）
+# 检查解压出来的所有文件，排查有没有 config.json
+print("=== 正在检查 matcher_model 解压后的文件结构 ===")
+all_files = []
+for root, dirs, files in os.walk(SBERT_MODEL_FOLDER):
+    for file in files:
+        full_path = os.path.join(root, file)
+        all_files.append(full_path)
+        print(f"发现文件: {full_path}")
+
+if not any("config.json" in f for f in all_files):
+    st.error("错误：你的 SBERT 压缩包解压后，所有目录中都找不到 config.json！请检查网盘里的压缩包内容。")
+
+# 寻找正确的路径
 def find_model_path(base_dir):
     if os.path.exists(os.path.join(base_dir, "config.json")):
         return base_dir
@@ -63,19 +67,12 @@ def find_model_path(base_dir):
             return root
     return base_dir
 
-# 纠正 SBERT 路径
 SBERT_PATH = find_model_path(SBERT_MODEL_FOLDER)
-print(f"自动修复后的 SBERT 路径: {SBERT_PATH}")
+print(f"最终使用的 SBERT 路径: {SBERT_PATH}")
 
-# 4. 加载 SBERT 模型
+# 加载 SBERT 模型
 sbert_model = SentenceTransformer(SBERT_PATH, device=device)
 print("SBERT Matcher loaded successfully!")
-
-# 5. 定义 NER 模型的具体文件路径（配合你之前的逻辑）
-MODEL_WEIGHTS_PATH = os.path.join(NER_MODEL_FOLDER, "best_model_run_2.pt")
-MODEL_CONFIG_PATH = os.path.join(NER_MODEL_FOLDER, "best_config_run_2.json")
-
-print("所有模型路径初始化完成！")
 
 """Load SBERT Matcher"""
 
