@@ -47,9 +47,7 @@ ner_weights = torch.load(f"{NER_PATH}/best_model_run_2.pt", map_location=device)
 
 print("NER Model loaded successfully!")
 
-!pip install pytorch-crf
 
-!pip install pytorch-crf transformers sentence-transformers
 
 from google.colab import drive
 import torch
@@ -68,7 +66,6 @@ max_length = 128
 # ==========================================
 # 1. Install Dependencies & Setup Environment
 # ==========================================
-!pip install pytorch-crf transformers sentence-transformers
 
 import os
 import torch
