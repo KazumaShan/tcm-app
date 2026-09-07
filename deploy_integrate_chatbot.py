@@ -7,7 +7,7 @@ Original file is located at
     https://colab.research.google.com/drive/1X54od62gAwr3jrv88N5Y3ezsOE9HmG6G
 """
 
-
+import streamlit as st
 
 """Loading Both Models in Google Colab"""
 
