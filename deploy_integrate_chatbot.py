@@ -12,6 +12,39 @@ import streamlit as st
 """Loading Both Models in Google Colab"""
 
 import os
+import shutil
+
+# 1. 彻底打印出 ner_model 目录下的所有绝对路径，看看到底长什么样
+print("=== 正在深度诊断 ner_model 目录 ===")
+target_json = None
+for root, dirs, files in os.walk("ner_model"):
+    for file in files:
+        full_p = os.path.join(root, file)
+        print(f"找到文件: {full_p}")
+        if file == "best_config_run_2.json":
+            target_json = full_p
+
+# 2. 如果找到了文件，直接把它的真实所在目录作为 NER_PATH
+if target_json:
+    NER_PATH = os.path.dirname(target_json)
+    print(f"-> 成功锁定真实 NER 目录: {NER_PATH}")
+else:
+    print("-> 警告：在整个 ner_model 中未找到配置文件！")
+    NER_PATH = "ner_model"
+
+# 3. 严格使用绝对路径加载，避免相对路径引发的玄学报错
+MODEL_CONFIG_PATH = os.path.abspath(os.path.join(NER_PATH, "best_config_run_2.json"))
+MODEL_WEIGHTS_PATH = os.path.abspath(os.path.join(NER_PATH, "best_model_run_2.pt"))
+
+print(f"最终绝对配置文件路径: {MODEL_CONFIG_PATH}")
+
+# 4. 正式读取
+with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
+    config_loaded = json.load(f)
+
+print("NER config loaded successfully!")
+
+import os
 import zipfile
 import shutil
 import torch
