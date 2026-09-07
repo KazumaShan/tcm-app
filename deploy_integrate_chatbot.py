@@ -31,7 +31,7 @@ def find_dir_with_files(base_dir, required_files):
 
 def safe_download_and_extract(file_id, zip_path, extract_dir):
     """下载并校验是不是真的 zip 文件，不是就直接报错"""
-    gdown.download(f"https://drive.google.com/uc?id={file_id}", zip_path, quiet=False, fuzzy=True)
+    gdown.download(f"https://drive.google.com/uc?id={file_id}", zip_path, quiet=False)
 
     if not os.path.exists(zip_path):
         raise RuntimeError(f"下载失败，文件不存在: {zip_path}")
