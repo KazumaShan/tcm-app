@@ -12,41 +12,9 @@ import streamlit as st
 """Loading Both Models in Google Colab"""
 
 import os
-import shutil
-
-# 1. 彻底打印出 ner_model 目录下的所有绝对路径，看看到底长什么样
-print("=== 正在深度诊断 ner_model 目录 ===")
-target_json = None
-for root, dirs, files in os.walk("ner_model"):
-    for file in files:
-        full_p = os.path.join(root, file)
-        print(f"找到文件: {full_p}")
-        if file == "best_config_run_2.json":
-            target_json = full_p
-
-# 2. 如果找到了文件，直接把它的真实所在目录作为 NER_PATH
-if target_json:
-    NER_PATH = os.path.dirname(target_json)
-    print(f"-> 成功锁定真实 NER 目录: {NER_PATH}")
-else:
-    print("-> 警告：在整个 ner_model 中未找到配置文件！")
-    NER_PATH = "ner_model"
-
-# 3. 严格使用绝对路径加载，避免相对路径引发的玄学报错
-MODEL_CONFIG_PATH = os.path.abspath(os.path.join(NER_PATH, "best_config_run_2.json"))
-MODEL_WEIGHTS_PATH = os.path.abspath(os.path.join(NER_PATH, "best_model_run_2.pt"))
-
-print(f"最终绝对配置文件路径: {MODEL_CONFIG_PATH}")
-
-# 4. 正式读取
-with open(MODEL_CONFIG_PATH, "r", encoding="utf-8") as f:
-    config_loaded = json.load(f)
-
-print("NER config loaded successfully!")
-
-import os
 import zipfile
 import shutil
+import json
 import torch
 import gdown
 import streamlit as st
@@ -59,44 +27,38 @@ def download_models():
     ner_dir = "ner_model"
     sbert_dir = "matcher_model"
 
-    # 核心修复：如果目录存在，但关键文件缺失，说明上次解压残缺了，必须强制删掉重新下！
+    # 强制清理旧目录，确保每次重启都会重新下载解压最新的压缩包
     if os.path.exists(ner_dir):
-        if not any("best_config_run_2.json" in f for _, _, files in os.walk(ner_dir) for f in files):
-            print("检测到 NER 目录残缺，正在强制清理并重新下载...")
-            shutil.rmtree(ner_dir)
-
+        shutil.rmtree(ner_dir)
     if os.path.exists(sbert_dir):
-        if not any("config.json" in f for _, _, files in os.walk(sbert_dir) for f in files):
-            print("检测到 SBERT 目录残缺，正在强制清理并重新下载...")
-            shutil.rmtree(sbert_dir)
+        shutil.rmtree(sbert_dir)
+
+    os.makedirs(ner_dir, exist_ok=True)
+    os.makedirs(sbert_dir, exist_ok=True)
 
     # 1. 下载并解压 NER 模型
-    if not os.path.exists(ner_dir) or not os.listdir(ner_dir):
-        os.makedirs(ner_dir, exist_ok=True)
-        zip_path_ner = "ner_model.zip"
-        ner_file_id = "1ftCQlp8dxP_-gNc89Sz-KvImUFjqkZpt"
-        gdown.download(f"https://drive.google.com/uc?id={ner_file_id}", zip_path_ner, quiet=False)
-        with zipfile.ZipFile(zip_path_ner, 'r') as zip_ref:
-            zip_ref.extractall(ner_dir)
-        if os.path.exists(zip_path_ner):
-            os.remove(zip_path_ner)
+    zip_path_ner = "ner_model.zip"
+    ner_file_id = "1fuMVt8SMMyUij242uOHXbhRAItxft9Gi"
+    gdown.download(f"https://drive.google.com/uc?id={ner_file_id}", zip_path_ner, quiet=False)
+    with zipfile.ZipFile(zip_path_ner, 'r') as zip_ref:
+        zip_ref.extractall(ner_dir)
+    if os.path.exists(zip_path_ner):
+        os.remove(zip_path_ner)
 
     # 2. 下载并解压 SBERT 模型
-    if not os.path.exists(sbert_dir) or not os.listdir(sbert_dir):
-        os.makedirs(sbert_dir, exist_ok=True)
-        zip_path_sbert = "matcher_model.zip"
-        sbert_file_id = "1SWWlmouGNICG4fGCV7FjEcIESkKTCl6L"
-        gdown.download(f"https://drive.google.com/uc?id={sbert_file_id}", zip_path_sbert, quiet=False)
-        with zipfile.ZipFile(zip_path_sbert, 'r') as zip_ref:
-            zip_ref.extractall(sbert_dir)
-        if os.path.exists(zip_path_sbert):
-            os.remove(zip_path_sbert)
+    zip_path_sbert = "matcher_model.zip"
+    sbert_file_id = "1SWWlmouGNICG4fGCV7FjEcIESkKTCl6L"
+    gdown.download(f"https://drive.google.com/uc?id={sbert_file_id}", zip_path_sbert, quiet=False)
+    with zipfile.ZipFile(zip_path_sbert, 'r') as zip_ref:
+        zip_ref.extractall(sbert_dir)
+    if os.path.exists(zip_path_sbert):
+        os.remove(zip_path_sbert)
 
     return ner_dir, sbert_dir
 
 NER_MODEL_FOLDER, SBERT_MODEL_FOLDER = download_models()
 
-# 自动寻找 NER 真实目录
+# 自动寻找 NER 真实目录（无论有没有嵌套都能找出来）
 def find_ner_dir(base_dir):
     for root, dirs, files in os.walk(base_dir):
         if "best_config_run_2.json" in files or "best_model_run_2.pt" in files:
