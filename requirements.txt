@@ -1,6 +1,6 @@
 streamlit
 torch
-gdown
+gdown>=5.1.0
 transformers
 torchvision
 pytorch-crf
